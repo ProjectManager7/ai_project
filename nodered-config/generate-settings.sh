@@ -56,7 +56,7 @@ module.exports = {
     // HTTP settings
     uiPort: process.env.PORT || 1880,
     httpAdminRoot: '/',
-    httpNodeRoot: '/api',
+    httpNodeRoot: '/',
     
     // Security settings
     requireHttps: false,
