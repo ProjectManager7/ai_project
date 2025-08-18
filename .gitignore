@@ -1,0 +1,238 @@
+# AI Project .gitignore
+# Исключает чувствительные данные и временные файлы из git
+
+# ===========================================
+# ЧУВСТВИТЕЛЬНЫЕ ДАННЫЕ (НИКОГДА НЕ КОММИТИТЬ!)
+# ===========================================
+
+.claude/
+
+# Environment переменные с реальными данными
+.env
+.env.local
+.env.production
+.env.staging
+
+# Файлы с credentials и секретами
+*.credentials
+credentials.json
+secrets/
+secret.txt
+api-keys.txt
+tokens.txt
+
+# Backup файлы с данными
+*.backup
+*.bak
+*_backup.*
+*.dump
+*.sql.gz
+*-backup.tar.gz
+*-backup.zip
+
+# ===========================================
+# SSL СЕРТИФИКАТЫ И КЛЮЧИ
+# ===========================================
+
+# Let's Encrypt данные (содержат приватные ключи)
+letsencrypt/
+certs/
+ssl/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+acme.json
+
+# ===========================================
+# DOCKER ДАННЫЕ
+# ===========================================
+
+# Docker volumes data (если используются bind mounts)
+volumes/
+data/mysql/
+data/redis/
+data/chroma/
+data/nodered/
+data/flowise/
+
+# Docker логи
+docker-compose.override.yml
+docker-compose.local.yml
+*.log
+
+# ===========================================
+# NODE-RED СПЕЦИФИЧНЫЕ ФАЙЛЫ
+# ===========================================
+
+# Node-RED runtime файлы с credentials
+flows_cred.json
+flows_*.json
+.flows.json.backup
+.config.runtime.json
+.sessions.json
+node_modules/
+
+# Node-RED custom nodes (если установлены локально)
+flows/**/node_modules/
+
+# ===========================================
+# FLOWISE СПЕЦИФИЧНЫЕ ФАЙЛЫ
+# ===========================================
+
+# Flowise данные с API ключами
+.flowise/
+flowise_apikey.json
+chatflows_with_credentials.json
+
+# Flowise flows и credentials
+flowise_flows.json
+flowise_credentials.json
+chatflows/*.json
+agents/*.json
+.flowise_config
+flowise_*.backup
+
+# ===========================================
+# СИСТЕМА И ВРЕМЕННЫЕ ФАЙЛЫ
+# ===========================================
+
+# Операционная система
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Временные файлы
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.#*
+
+# IDE и редакторы
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.vim/
+*.vi
+
+# ===========================================
+# ЛОГИ И МОНИТОРИНГ
+# ===========================================
+
+# Логи приложений
+logs/
+*.log
+log.txt
+error.log
+access.log
+debug.log
+
+# Traefik логи
+traefik.log
+access.log
+
+# MySQL логи
+mysql-error.log
+mysql-slow.log
+
+# ===========================================
+# BACKUP И РАЗВЕРТЫВАНИЕ
+# ===========================================
+
+# Архивы с данными
+*.tar.gz
+*.tar.bz2
+*.zip
+*.rar
+
+# Terraform состояние (если используется)
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/
+
+# Ansible временные файлы
+*.retry
+
+# ===========================================
+# РАЗРАБОТКА И ТЕСТИРОВАНИЕ
+# ===========================================
+
+# Unit test результаты
+coverage/
+.nyc_output/
+.coverage
+htmlcov/
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+
+# ===========================================
+# ИСКЛЮЧЕНИЯ (файлы которые ДОЛЖНЫ быть в git)
+# ===========================================
+
+# Разрешаем template файлы
+!.env.example
+!flows/README.md
+!flows/*.template.json
+
+# Разрешаем конфигурационные файлы без секретов
+!docker-compose.yml
+!traefik/traefik.yml
+!nginx/default.conf
+
+# Разрешаем скрипты
+!*.sh
+!scripts/
+
+# Разрешаем документацию
+!README.md
+!*.md
+!docs/
+
+# ===========================================
+# ПРИМЕРЫ И ШАБЛОНЫ (разрешены в git)
+# ===========================================
+
+# Это файлы которые можно безопасно коммитить
+# - .env.example (без реальных данных)
+# - flow-templates/*.json (без credentials)
+# - scripts/ (скрипты развертывания)
+# - docs/ (документация)
+# - README.md файлы
+
+# ===========================================
+# ЛОКАЛЬНАЯ РАЗРАБОТКА
+# ===========================================
+
+# Переопределения для локальной разработки
+docker-compose.dev.yml
+docker-compose.test.yml
+.env.dev
+.env.test
+
+# Локальные скрипты
+local-*
+dev-*
+test-*

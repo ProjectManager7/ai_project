@@ -1,0 +1,71 @@
+# Traefik Configuration - Production SSL Certificates
+# Автоматическое получение реальных SSL сертификатов от Let's Encrypt
+
+# Общие настройки
+global:
+  sendAnonymousUsage: false
+
+# Настройка API и Dashboard
+api:
+  dashboard: true
+  debug: true
+  insecure: true
+
+# Entry Points (точки входа)
+entryPoints:
+  # HTTP entry point (порт 80) для ACME challenge и редиректа
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entrypoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  
+  # HTTPS entry points
+  websecure:
+    address: ":443"
+  
+  # Кастомный HTTPS entry point для Flowise
+  websecure-5050:
+    address: ":5050"
+
+# Providers (откуда Traefik получает конфигурацию)
+providers:
+  # Docker provider для автоматического обнаружения контейнеров
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: "ai_project_internal"
+
+# Certificate Resolvers (управление SSL сертификатами)
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      # CA Server для реальных сертификатов Let's Encrypt
+      caServer: https://acme-v02.api.letsencrypt.org/directory
+      
+      # Email передается через переменную окружения в docker-compose.yml
+      
+      # Файл для хранения сертификатов и аккаунта ACME
+      storage: /letsencrypt/acme.json
+      
+      # HTTP Challenge через entry point 'web' (порт 80)
+      httpChallenge:
+        entryPoint: web
+
+# Настройки логирования
+log:
+  level: INFO
+  filePath: "/var/log/traefik.log"
+
+# Логи доступа
+accessLog:
+  filePath: "/var/log/access.log"
+
+# Metrics (опционально для мониторинга)
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addServicesLabels: true

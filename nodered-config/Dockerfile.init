@@ -1,0 +1,14 @@
+FROM node:18-alpine
+
+# Install bcrypt for password hashing
+RUN npm install -g bcrypt
+
+# Copy the settings generation script
+COPY generate-settings.sh /usr/local/bin/generate-settings.sh
+RUN chmod +x /usr/local/bin/generate-settings.sh
+
+# Set working directory
+WORKDIR /app
+
+# Default command
+CMD ["/usr/local/bin/generate-settings.sh"]

@@ -1,0 +1,261 @@
+# docker-compose.yml
+
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: service_traefik
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+    ports:
+      - "80:80"       # HTTP endpoint для ACME challenge
+      - "8082:8080"   # Dashboard Traefik (опционально)
+      - "443:443"     # HTTPS endpoint для Node-RED
+      - "5050:5050"   # HTTPS endpoint для Flowise
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik:/etc/traefik
+      - ./letsencrypt:/letsencrypt
+      - ./certs:/certs
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    command:
+      - --configfile=/etc/traefik/traefik.yml
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+    env_file: .env
+    networks:
+      - internal
+
+  # ===========================================
+  # DATABASE (MySQL)
+  # ===========================================
+  mysql_db:
+    image: mysql:8.0
+    container_name: service_mysql
+    env_file: .env
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: ${TZ}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql_init:/docker-entrypoint-initdb.d
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "${MYSQL_EXTERNAL_PORT:-3306}:3306"
+    restart: unless-stopped
+    networks:
+      - internal
+    command: --default-authentication-plugin=mysql_native_password
+
+  # ===========================================
+  # DATABASE MANAGEMENT (phpMyAdmin)
+  # ===========================================
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: service_phpmyadmin
+    environment:
+      PMA_HOST: mysql_db
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      PMA_ABSOLUTE_URI: https://${DOMAIN}/phpmyadmin/
+      TZ: ${TZ}
+    depends_on:
+      - mysql_db
+    restart: unless-stopped
+    networks:
+      - internal
+    labels:
+      - "traefik.enable=true"
+      # HTTP роутер с редиректом на HTTPS
+      - "traefik.http.routers.phpmyadmin-http.rule=Host(`${DOMAIN}`) && PathPrefix(`/phpmyadmin`)"
+      - "traefik.http.routers.phpmyadmin-http.entrypoints=web"
+      - "traefik.http.routers.phpmyadmin-http.middlewares=phpmyadmin-https-redirect"
+      - "traefik.http.routers.phpmyadmin-http.priority=210"
+      # HTTPS роутер для phpMyAdmin
+      - "traefik.http.routers.phpmyadmin-https.rule=Host(`${DOMAIN}`) && PathPrefix(`/phpmyadmin`)"
+      - "traefik.http.routers.phpmyadmin-https.entrypoints=websecure"
+      - "traefik.http.routers.phpmyadmin-https.tls=true"
+      - "traefik.http.routers.phpmyadmin-https.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.phpmyadmin-https.priority=210"
+      - "traefik.http.routers.phpmyadmin-https.middlewares=phpmyadmin-strip-prefix"
+      # Сервис phpMyAdmin
+      - "traefik.http.services.phpmyadmin.loadbalancer.server.port=80"
+      # Middleware для редиректа на HTTPS
+      - "traefik.http.middlewares.phpmyadmin-https-redirect.redirectscheme.scheme=https"
+      # Middleware для удаления /phpmyadmin prefix
+      - "traefik.http.middlewares.phpmyadmin-strip-prefix.stripprefix.prefixes=/phpmyadmin"
+
+
+
+  # Node-RED Configuration Generator
+  nodered-init:
+    image: node:18-alpine
+    container_name: service_nodered_init
+    environment:
+      - NODE_RED_PASSWORD=${NODE_RED_PASSWORD}
+      - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_PASSWORD}
+    volumes:
+      - nodered_data:/data
+      - ./nodered-config/generate-settings.sh:/usr/local/bin/generate-settings.sh:ro
+    command: ["sh", "/usr/local/bin/generate-settings.sh"]
+    networks:
+      - internal
+
+  # Node-RED Service
+  nodered:
+    image: nodered/node-red:latest
+    container_name: service_nodered
+    restart: unless-stopped
+    command: ["node-red", "--settings", "/data/settings.js"]
+    depends_on:
+      - nodered-init
+    environment:
+      - TZ=${TZ}
+      - NODE_RED_ENABLE_PROJECTS=true
+      - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_PASSWORD}
+      - NODE_OPTIONS=--max_old_space_size=128
+    volumes:
+      - nodered_data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - internal
+    labels:
+      - "traefik.enable=true"
+      # HTTP роутер с редиректом на HTTPS
+      - "traefik.http.routers.nodered-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.nodered-http.entrypoints=web"
+      - "traefik.http.routers.nodered-http.middlewares=nodered-https-redirect"
+      # HTTPS роутер для Node-RED на порту 443
+      - "traefik.http.routers.nodered-https.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.nodered-https.entrypoints=websecure"
+      - "traefik.http.routers.nodered-https.priority=200"
+      - "traefik.http.routers.nodered-https.tls=true"
+      - "traefik.http.routers.nodered-https.tls.certresolver=letsencrypt"
+      # Сервис Node-RED
+      - "traefik.http.services.nodered.loadbalancer.server.port=1880"
+      # Middleware для редиректа на HTTPS
+      - "traefik.http.middlewares.nodered-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.nodered-https-redirect.redirectscheme.port=443"
+
+  # Flowise AI Service
+  flowise:
+    image: flowiseai/flowise:${FLOWISE_VERSION}
+    container_name: service_flowise
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - FLOWISE_USERNAME=${FLOWISE_EMAIL}
+      - FLOWISE_PASSWORD=${FLOWISE_PASSWORD}
+      - PORT=3000
+      - DATABASE_PATH=/opt/flowise/.flowise
+      - APIKEY_PATH=/opt/flowise/.flowise
+      - SECRETKEY_PATH=/opt/flowise/.flowise
+      - LOG_PATH=/opt/flowise/.flowise/logs
+      - BLOB_STORAGE_PATH=/opt/flowise/.flowise/storage
+    volumes:
+      - flowise_data:/opt/flowise/.flowise
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - internal
+    labels:
+      - "traefik.enable=true"
+      # HTTP роутер с редиректом на HTTPS
+      - "traefik.http.routers.flowise-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.flowise-http.entrypoints=web"
+      - "traefik.http.routers.flowise-http.middlewares=flowise-https-redirect"
+      # HTTPS роутер для Flowise на порту 5050
+      - "traefik.http.routers.flowise-https.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.flowise-https.entrypoints=websecure-5050"
+      - "traefik.http.routers.flowise-https.priority=100"
+      - "traefik.http.routers.flowise-https.tls=true"
+      - "traefik.http.routers.flowise-https.tls.certresolver=letsencrypt"
+      # Сервис Flowise
+      - "traefik.http.services.flowise.loadbalancer.server.port=3000"
+      # Middleware для редиректа на HTTPS
+      - "traefik.http.middlewares.flowise-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.flowise-https-redirect.redirectscheme.port=5050"
+
+  # Redis Service
+  redis:
+    image: redis:7-alpine
+    container_name: service_redis
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - internal
+    command: redis-server --appendonly yes
+
+  # ===========================================
+  # VECTOR DATABASE (Chroma)
+  # ===========================================
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: service_chroma
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+    ports:
+      - "8333:8000"
+    volumes:
+      - chroma_data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - internal
+
+  # ===========================================
+  # STATIC FILES SERVER (Nginx)
+  # ===========================================
+  nginx:
+    image: nginx:alpine
+    container_name: service_nginx_static
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+    networks:
+      - internal
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Монтируем папку с статическими данными
+      - /var/www/html/data:/usr/share/nginx/html/data:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    labels:
+      - "traefik.enable=true"
+      # Маршрутизация /data/* на Nginx
+      - "traefik.http.routers.static.rule=Host(`${DOMAIN}`) && PathPrefix(`/data`)"
+      - "traefik.http.routers.static.entrypoints=websecure"
+      - "traefik.http.routers.static.tls=true"
+      - "traefik.http.routers.static.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.static.priority=80"
+      - "traefik.http.services.static.loadbalancer.server.port=80"
+      # Кеширование статики
+      - "traefik.http.middlewares.static-cache.headers.customresponseheaders.Cache-Control=public, max-age=31536000"
+      - "traefik.http.routers.static.middlewares=static-cache"
+    depends_on:
+      - traefik
+
+
+networks:
+  internal:
+    driver: bridge # Стандартный сетевой драйвер Docker
+
+volumes:
+  mysql_data:       # Docker-managed volume для данных MySQL
+  nodered_data:     # Docker-managed volume для данных Node-RED
+  flowise_data:     # Docker-managed volume для данных Flowise
+  redis_data:       # Docker-managed volume для данных Redis
+  chroma_data:      # Docker-managed volume для данных Chroma
+  # service_sessions: # Закомментировано - используем bind mount
+  # service_media:    # Закомментировано - используем bind mount
