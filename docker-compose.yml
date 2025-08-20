@@ -8,10 +8,10 @@ services:
     environment:
       - TZ=${TZ}
     ports:
-      - "80:80"       # HTTP endpoint для ACME challenge
-      - "8082:8080"   # Dashboard Traefik (опционально)
-      - "443:443"     # HTTPS endpoint для Node-RED
-      - "5050:5050"   # HTTPS endpoint для Flowise
+      - "80:80"         # HTTP endpoint для ACME challenge
+      - "127.0.0.1:8082:8080"  # Dashboard Traefik - LOCALHOST ONLY for security
+      - "443:443"       # HTTPS endpoint для Node-RED
+      - "5050:5050"     # HTTPS endpoint для Flowise
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik:/etc/traefik
@@ -25,9 +25,10 @@ services:
     env_file: .env
     networks:
       - internal
+    # Dashboard available only on localhost:8082 for security
 
   # ===========================================
-  # DATABASE (MySQL)
+  # DATABASE (MySQL) - INTERNAL ONLY
   # ===========================================
   mysql_db:
     image: mysql:8.0
@@ -42,8 +43,9 @@ services:
       - ./mysql_init:/docker-entrypoint-initdb.d
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
-    ports:
-      - "${MYSQL_EXTERNAL_PORT:-3306}:3306"
+    # SECURITY: No external ports exposed - only internal network access
+    # ports:
+    #   - "${MYSQL_EXTERNAL_PORT:-3306}:3306"
     restart: unless-stopped
     networks:
       - internal
@@ -179,15 +181,16 @@ services:
       - "traefik.http.middlewares.flowise-https-redirect.redirectscheme.scheme=https"
       - "traefik.http.middlewares.flowise-https-redirect.redirectscheme.port=5050"
 
-  # Redis Service
+  # Redis Service - INTERNAL ONLY
   redis:
     image: redis:7-alpine
     container_name: service_redis
     restart: unless-stopped
     environment:
       - TZ=${TZ}
-    ports:
-      - "6379:6379"
+    # SECURITY: No external ports exposed - only internal network access
+    # ports:
+    #   - "6379:6379"
     volumes:
       - redis_data:/data
       - /etc/timezone:/etc/timezone:ro
@@ -197,7 +200,7 @@ services:
     command: redis-server --appendonly yes
 
   # ===========================================
-  # VECTOR DATABASE (Chroma)
+  # VECTOR DATABASE (Chroma) - INTERNAL ONLY
   # ===========================================
   chroma:
     image: chromadb/chroma:latest
@@ -205,8 +208,9 @@ services:
     restart: unless-stopped
     environment:
       - TZ=${TZ}
-    ports:
-      - "8333:8000"
+    # SECURITY: No external ports exposed - only internal network access
+    # ports:
+    #   - "8333:8000"
     volumes:
       - chroma_data:/data
       - /etc/timezone:/etc/timezone:ro

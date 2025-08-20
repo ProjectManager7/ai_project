@@ -375,6 +375,9 @@ FLOWISE_EMAIL=your-email@example.com            # Email для входа в Flo
 FLOWISE_PASSWORD=your-secure-password           # Пароль для входа в Flowise
 MYSQL_ROOT_PASSWORD=your-mysql-root-password    # Root пароль для MySQL
 
+# Traefik Dashboard доступен только с localhost:8082 для безопасности
+# TRAEFIK_PASSWORD не требуется - доступ ограничен локальным хостом
+
 # Часовой пояс (при необходимости)
 TZ=Europe/Kiev
 ```
@@ -390,6 +393,9 @@ email: svemail2@gmail.com
 # Замените на ваш email:
 email: your-email@example.com
 ```
+
+**🔐 Безопасность Traefik Dashboard:**
+Traefik Dashboard доступен только с локального хоста (127.0.0.1) для максимальной безопасности. SSH туннель не требуется - прямой доступ заблокирован для внешних соединений.
 
 ### 🔐 Шаг 4: Проверка домена и запуск
 
@@ -443,6 +449,7 @@ https://your-domain.com/data         # Статические файлы (без
 | **Node-RED** | `https://domain.com` | `admin` | `NODE_RED_PASSWORD` | `.env` |
 | **Flowise AI** | `https://domain.com:5050` | `FLOWISE_EMAIL` | `FLOWISE_PASSWORD` | `.env` |
 | **phpMyAdmin** | `https://domain.com/phpmyadmin` | `root` | `MYSQL_ROOT_PASSWORD` | `.env` |
+| **Traefik Dashboard** | `http://127.0.0.1:8082/dashboard/` | - | - | Localhost only |
 | **Статика** | `https://domain.com/data` | - | - | Без аутентификации |
 
 **Если сервисы недоступны:**
@@ -464,6 +471,7 @@ docker network ls
 - ✅ `https://your-domain.com` (Node-RED)
 - ✅ `https://your-domain.com:5050` (Flowise)
 - ✅ `https://your-domain.com/phpmyadmin` (База данных)
+- ✅ `http://127.0.0.1:8082/dashboard/` (Traefik Dashboard - localhost only)
 - ✅ Автоматическое обновление SSL сертификатов
 
 ---
@@ -549,7 +557,7 @@ docker logs service_nginx_static -f
 | Flowise | `https://domain.com:5050` | `FLOWISE_EMAIL` | `FLOWISE_PASSWORD` | AI workflow platform |
 | phpMyAdmin | `https://domain.com/phpmyadmin` | `root` | `MYSQL_ROOT_PASSWORD` | Управление MySQL |
 | Статические файлы | `https://domain.com/data/` | - | - | Файловый сервер |
-| Traefik Dashboard | `http://domain.com:8082` | - | - | Мониторинг прокси |
+| Traefik Dashboard | `http://127.0.0.1:8082/dashboard/` | - | - | Мониторинг прокси (localhost only) |
 
 ### 📈 Мониторинг SSL сертификатов
 

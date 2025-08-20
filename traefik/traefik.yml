@@ -5,11 +5,11 @@
 global:
   sendAnonymousUsage: false
 
-# Настройка API и Dashboard
+# Настройка API и Dashboard - LOCALHOST ONLY ACCESS
 api:
   dashboard: true
-  debug: true
-  insecure: true
+  debug: false
+  insecure: true  # Safe because limited to localhost only via port binding
 
 # Entry Points (точки входа)
 entryPoints:
@@ -30,6 +30,7 @@ entryPoints:
   # Кастомный HTTPS entry point для Flowise
   websecure-5050:
     address: ":5050"
+  
 
 # Providers (откуда Traefik получает конфигурацию)
 providers:
