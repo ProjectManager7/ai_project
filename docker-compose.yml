@@ -242,7 +242,7 @@ services:
       - "traefik.http.routers.static.entrypoints=websecure"
       - "traefik.http.routers.static.tls=true"
       - "traefik.http.routers.static.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.static.priority=80"
+      - "traefik.http.routers.static.priority=300"
       - "traefik.http.services.static.loadbalancer.server.port=80"
       # Кеширование статики
       - "traefik.http.middlewares.static-cache.headers.customresponseheaders.Cache-Control=public, max-age=31536000"
