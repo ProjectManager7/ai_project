@@ -17,6 +17,7 @@ services:
       - ./traefik:/etc/traefik
       - ./letsencrypt:/letsencrypt
       - ./certs:/certs
+      - ./logs:/var/log
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     command:
