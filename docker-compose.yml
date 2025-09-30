@@ -121,6 +121,7 @@ services:
       - NODE_OPTIONS=--max_old_space_size=128
     volumes:
       - nodered_data:/data
+      - /var/www/html/data:/data/public
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     networks:
