@@ -30,7 +30,10 @@ entryPoints:
   # Кастомный HTTPS entry point для Flowise
   websecure-5050:
     address: ":5050"
-  
+
+  # Кастомный HTTPS entry point для LightRAG
+  websecure-7040:
+    address: ":7040"
 
 # Providers (откуда Traefik получает конфигурацию)
 providers:

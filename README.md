@@ -35,6 +35,7 @@
 ### 🤖 AI и автоматизация:
 - **Node-RED** - visual programming для IoT и автоматизации
 - **Flowise AI** - low-code AI workflows и чатботы
+- **LightRAG** - Knowledge Graph & RAG система для работы с документами
 - **Telegram Bot API** - интеграция с Telegram
 
 ### 📊 Управление и мониторинг:
@@ -64,16 +65,16 @@
                 ┌─────▼──────┐
                 │   TRAEFIK  │ ◄─── SSL Termination
                 │  (Proxy)   │      Load Balancer
-                └─────┬──────┘      Port 80,443,5050
+                └─────┬──────┘      Port 80,443,5050,7040
                       │
-        ┌─────────────┼─────────────┐
-        │             │             │
-   ┌────▼────┐   ┌────▼────┐   ┌────▼────┐
-   │Node-RED │   │Flowise  │   │phpMyAdmin│
-   │:443     │   │:5050    │   │/phpmyadmin│
-   └────┬────┘   └────┬────┘   └────┬────┘
-        │             │             │
-        └─────────────┼─────────────┘
+        ┌─────────────┼──────────────┼─────────────┐
+        │             │              │             │
+   ┌────▼────┐   ┌────▼────┐   ┌─────▼─────┐ ┌────▼────┐
+   │Node-RED │   │Flowise  │   │ LightRAG  │ │phpMyAdmin│
+   │:443     │   │:5050    │   │ :7040     │ │/phpmyadmin│
+   └────┬────┘   └────┬────┘   └─────┬─────┘ └────┬────┘
+        │             │              │             │
+        └─────────────┼──────────────┼─────────────┘
                       │
             ┌─────────▼──────────┐
             │   INTERNAL NETWORK │
@@ -90,9 +91,10 @@
 1. **Пользователи** → **Traefik** → **Сервисы**
 2. **Node-RED** ↔ **MySQL** (боты, логи)
 3. **Flowise** ↔ **ChromaDB** (векторы, AI память)
-4. **Redis** ↔ **Все сервисы** (кэш, сессии)
-5. **Nginx** → **Статические файлы** (`/var/www/html/data`)
-6. **Node-RED** → **Публичные файлы** (`/data/public/` → `https://domain.com/data/`)
+4. **LightRAG** ↔ **Внутреннее хранилище** (графы знаний, RAG)
+5. **Redis** ↔ **Все сервисы** (кэш, сессии)
+6. **Nginx** → **Статические файлы** (`/var/www/html/data`)
+7. **Node-RED** → **Публичные файлы** (`/data/public/` → `https://domain.com/data/`)
 
 ### 📁 Структура проекта:
 
@@ -267,10 +269,26 @@ sudo apt update && sudo apt upgrade -y
 - **Назначение**: Автоматизация, IoT, Telegram боты
 
 #### 🤖 **Flowise AI** (`service_flowise`)
-- **Внутренний порт**: 3000  
+- **Внутренний порт**: 3000
 - **Внешний доступ**: `https://domain.com:5050`
 - **Данные**: Docker volume `flowise_data`
 - **Назначение**: AI workflow, чатботы, векторный поиск
+
+#### 🧠 **LightRAG** (`service_lightrag`)
+- **Внутренний порт**: 9621
+- **Внешний доступ**: `https://domain.com:7040`
+- **Внутренний URL**: `http://lightrag:9621` или `http://service_lightrag:9621`
+- **Данные**: Docker volume `lightrag_storage` + bind mounts для inputs/tiktoken
+- **Аутентификация**: ✅ JWT токены (AUTH_ACCOUNTS, TOKEN_SECRET из `.env`)
+- **API документация**: `https://domain.com:7040/docs` (Swagger/OpenAPI)
+- **Назначение**: Knowledge Graph построение, RAG (Retrieval Augmented Generation), работа с документами
+- **Использование из других контейнеров**:
+  ```bash
+  # Из Node-RED, Flowise или любого другого сервиса:
+  curl http://lightrag:9621/api/endpoint
+  # или
+  curl http://service_lightrag:9621/api/endpoint
+  ```
 
 #### 📊 **phpMyAdmin** (`service_phpmyadmin`)
 - **Внутренний порт**: 80
@@ -302,6 +320,169 @@ sudo apt update && sudo apt upgrade -y
 - **Внешний порт**: 8333
 - **Данные**: Docker volume `chroma_data`
 - **Назначение**: Векторная БД для AI/ML операций
+
+---
+
+## 🧠 LightRAG - Knowledge Graph & RAG система
+
+**LightRAG** - это мощная система для работы с документами, построения графов знаний и Retrieval Augmented Generation (RAG).
+
+### 📋 Основные возможности:
+
+- **📄 Обработка документов** - загрузка и индексация текстовых документов
+- **🕸️ Knowledge Graph** - автоматическое построение графов знаний из текста
+- **🔍 RAG (Retrieval Augmented Generation)** - умный поиск и генерация ответов
+- **🎯 Entity Extraction** - извлечение сущностей и связей
+- **📊 Векторизация** - использует OpenAI embeddings для семантического поиска
+- **🔐 JWT аутентификация** - защищенный доступ к API
+
+### 🌐 Доступ к сервису:
+
+**Внешний доступ (из браузера):**
+```bash
+https://your-domain.com:7040           # WebUI и API
+https://your-domain.com:7040/docs      # Swagger документация
+https://your-domain.com:7040/redoc     # ReDoc документация
+```
+
+**Внутренний доступ (из других Docker контейнеров):**
+```bash
+http://lightrag:9621                   # По имени сервиса
+http://service_lightrag:9621           # По имени контейнера
+```
+
+### 🔑 Аутентификация:
+
+LightRAG использует JWT токены для защиты API. Учетные данные хранятся в `.env`:
+
+```bash
+# В .env файле:
+AUTH_ACCOUNTS=admin:your-password      # Формат: username:password
+TOKEN_SECRET=your-secret-key-32chars   # Секретный ключ для JWT
+```
+
+**Получение токена:**
+```bash
+# Логин и получение JWT токена
+curl -X POST https://your-domain.com:7040/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "your-password"}'
+
+# Ответ: {"access_token": "eyJ0eXAiOiJKV1QiLCJhb..."}
+```
+
+**Использование токена:**
+```bash
+# Запрос к API с токеном
+curl https://your-domain.com:7040/api/endpoint \
+  -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhb..."
+```
+
+### 🔧 Использование из других сервисов:
+
+#### Из Node-RED:
+```javascript
+// HTTP Request node
+{
+  "method": "POST",
+  "url": "http://lightrag:9621/api/insert",
+  "headers": {
+    "Authorization": "Bearer YOUR_JWT_TOKEN",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "text": "Your document text here..."
+  }
+}
+```
+
+#### Из Flowise:
+```javascript
+// В Custom Tool или HTTP Request node
+const response = await fetch('http://lightrag:9621/api/query', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_JWT_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    query: "What is machine learning?",
+    mode: "hybrid"
+  })
+});
+```
+
+#### Из Python (внутри контейнера):
+```python
+import requests
+
+# Получение токена
+auth_response = requests.post(
+    'http://lightrag:9621/auth/login',
+    json={'username': 'admin', 'password': 'your-password'}
+)
+token = auth_response.json()['access_token']
+
+# Запрос к API
+headers = {'Authorization': f'Bearer {token}'}
+response = requests.post(
+    'http://lightrag:9621/api/query',
+    headers=headers,
+    json={'query': 'Explain RAG', 'mode': 'hybrid'}
+)
+print(response.json())
+```
+
+### 📂 Структура данных:
+
+LightRAG хранит данные в нескольких местах:
+
+```bash
+lightrag/
+├── data/
+│   ├── inputs/          # Входные документы для обработки
+│   ├── tiktoken/        # Кэш токенизатора OpenAI
+│   └── rag_storage/     # Хранится в Docker volume (граф, векторы)
+```
+
+**Docker volumes:**
+- `lightrag_storage` - основное хранилище графов знаний и индексов
+
+### ⚙️ Конфигурация:
+
+Все параметры настраиваются через `.env`:
+
+```bash
+# LightRAG настройки
+SUMMARY_LANGUAGE=English              # Язык суммаризации
+CHUNK_SIZE=1200                       # Размер чанков текста
+CHUNK_OVERLAP_SIZE=200                # Перекрытие чанков
+FORCE_LLM_SUMMARY_ON_MERGE=4          # LLM суммаризация
+SUMMARY_MAX_TOKENS=30000              # Макс токенов для суммаризации
+
+# OpenAI для embeddings
+EMBEDDING_BINDING=openai
+EMBEDDING_MODEL=text-embedding-3-large
+EMBEDDING_BINDING_API_KEY=sk-your-key
+
+# OpenAI для LLM
+LLM_BINDING=openai
+LLM_MODEL=gpt-4o-mini
+LLM_BINDING_API_KEY=sk-your-key
+
+# Производительность
+MAX_ASYNC=12                          # Максимум асинхронных задач
+MAX_PARALLEL_INSERT=3                 # Параллельные вставки
+EMBEDDING_FUNC_MAX_ASYNC=24           # Асинхронность embeddings
+EMBEDDING_BATCH_NUM=100               # Размер батча embeddings
+```
+
+### 🚀 Типичные сценарии использования:
+
+1. **Загрузка документов** → `POST /api/insert`
+2. **Поиск по документам** → `POST /api/query`
+3. **Построение графа знаний** → автоматически при вставке
+4. **RAG генерация ответов** → `POST /api/query` с mode="hybrid"
 
 ---
 
@@ -439,6 +620,7 @@ ls -la /var/www/html/data/
 # Основные сервисы
 https://your-domain.com              # Node-RED (логин: admin, пароль: NODE_RED_PASSWORD)
 https://your-domain.com:5050         # Flowise AI (логин из FLOWISE_EMAIL/PASSWORD)
+https://your-domain.com:7040         # LightRAG (JWT аутентификация, см. AUTH_ACCOUNTS в .env)
 https://your-domain.com/phpmyadmin   # phpMyAdmin (логин: root, пароль: MYSQL_ROOT_PASSWORD)
 https://your-domain.com/data         # Статические файлы (без аутентификации)
 ```
@@ -449,6 +631,7 @@ https://your-domain.com/data         # Статические файлы (без
 |--------|-----|-------|---------|----------|
 | **Node-RED** | `https://domain.com` | `admin` | `NODE_RED_PASSWORD` | `.env` |
 | **Flowise AI** | `https://domain.com:5050` | `FLOWISE_EMAIL` | `FLOWISE_PASSWORD` | `.env` |
+| **LightRAG** | `https://domain.com:7040` | `AUTH_ACCOUNTS` | JWT токен | `.env` |
 | **phpMyAdmin** | `https://domain.com/phpmyadmin` | `root` | `MYSQL_ROOT_PASSWORD` | `.env` |
 | **Traefik Dashboard** | `http://127.0.0.1:8082/dashboard/` | - | - | Localhost only |
 | **Статика** | `https://domain.com/data` | - | - | Без аутентификации |
@@ -471,6 +654,7 @@ docker network ls
 **Сервисы доступны с валидными SSL сертификатами:**
 - ✅ `https://your-domain.com` (Node-RED)
 - ✅ `https://your-domain.com:5050` (Flowise)
+- ✅ `https://your-domain.com:7040` (LightRAG)
 - ✅ `https://your-domain.com/phpmyadmin` (База данных)
 - ✅ `http://127.0.0.1:8082/dashboard/` (Traefik Dashboard - localhost only)
 - ✅ Автоматическое обновление SSL сертификатов
@@ -735,6 +919,7 @@ docker logs service_nginx_static -f
 |--------|-----|-------|---------|-----------|
 | Node-RED | `https://domain.com` | `admin` | `NODE_RED_PASSWORD` | Визуальное программирование |
 | Flowise | `https://domain.com:5050` | `FLOWISE_EMAIL` | `FLOWISE_PASSWORD` | AI workflow platform |
+| LightRAG | `https://domain.com:7040` | `AUTH_ACCOUNTS` | JWT токен | Knowledge Graph & RAG |
 | phpMyAdmin | `https://domain.com/phpmyadmin` | `root` | `MYSQL_ROOT_PASSWORD` | Управление MySQL |
 | Статические файлы | `https://domain.com/data/` | - | - | Файловый сервер |
 | Traefik Dashboard | `http://127.0.0.1:8082/dashboard/` | - | - | Мониторинг прокси (localhost only) |
@@ -880,8 +1065,9 @@ docker volume ls | grep ai_project
 
 **Важно:** Docker volumes с данными НЕ удаляются при пересборке:
 - `mysql_data` - данные MySQL
-- `nodered_data` - конфигурация Node-RED  
+- `nodered_data` - конфигурация Node-RED
 - `flowise_data` - данные Flowise
+- `lightrag_storage` - данные LightRAG (граф знаний, RAG)
 - `redis_data` - кэш Redis
 - `chroma_data` - векторная база данных
 
@@ -1138,9 +1324,10 @@ docker ps
 
 После выполнения всех шагов у вас будет работающая система с:
 
-✅ **Автоматическими SSL сертификатами** (Let's Encrypt)  
+✅ **Автоматическими SSL сертификатами** (Let's Encrypt)
 ✅ **Node-RED** для автоматизации и Telegram ботов + публичные файлы
 ✅ **Flowise AI** для создания AI workflow
+✅ **LightRAG** для Knowledge Graph и RAG (Retrieval Augmented Generation)
 ✅ **MySQL + phpMyAdmin** для управления базами данных
 ✅ **Redis** для кэширования
 ✅ **ChromaDB** для векторных операций

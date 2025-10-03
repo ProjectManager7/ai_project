@@ -12,6 +12,7 @@ services:
       - "127.0.0.1:8082:8080"  # Dashboard Traefik - LOCALHOST ONLY for security
       - "443:443"       # HTTPS endpoint для Node-RED
       - "5050:5050"     # HTTPS endpoint для Flowise
+      - "7040:7040"     # HTTPS endpoint для LightRAG
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik:/etc/traefik
@@ -89,8 +90,6 @@ services:
       - "traefik.http.middlewares.phpmyadmin-https-redirect.redirectscheme.scheme=https"
       # Middleware для удаления /phpmyadmin prefix
       - "traefik.http.middlewares.phpmyadmin-strip-prefix.stripprefix.prefixes=/phpmyadmin"
-
-
 
   # Node-RED Configuration Generator
   nodered-init:
@@ -183,6 +182,49 @@ services:
       - "traefik.http.middlewares.flowise-https-redirect.redirectscheme.scheme=https"
       - "traefik.http.middlewares.flowise-https-redirect.redirectscheme.port=5050"
 
+  # LightRAG AI Service
+  lightrag:
+    image: ghcr.io/hkuds/lightrag:latest
+    container_name: service_lightrag
+    hostname: lightrag
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - TIKTOKEN_CACHE_DIR=/app/data/tiktoken
+      - PORT=9621
+    volumes:
+      - lightrag_storage:/app/data/rag_storage
+      - ./lightrag/data/inputs:/app/data/inputs
+      - ./lightrag/data/tiktoken:/app/data/tiktoken
+      - ./lightrag/config.ini:/app/config.ini
+      - ./.env:/app/.env:ro
+      - ./shared:/data/shared
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - internal
+    labels:
+      - "traefik.enable=true"
+      # HTTP роутер с редиректом на HTTPS
+      - "traefik.http.routers.lightrag-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.lightrag-http.entrypoints=web"
+      - "traefik.http.routers.lightrag-http.middlewares=lightrag-https-redirect"
+      # HTTPS роутер для LightRAG на порту 7040
+      - "traefik.http.routers.lightrag-https.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.lightrag-https.entrypoints=websecure-7040"
+      - "traefik.http.routers.lightrag-https.priority=90"
+      - "traefik.http.routers.lightrag-https.tls=true"
+      - "traefik.http.routers.lightrag-https.tls.certresolver=letsencrypt"
+      # Сервис LightRAG
+      - "traefik.http.services.lightrag.loadbalancer.server.port=9621"
+      # Middleware для редиректа на HTTPS
+      - "traefik.http.middlewares.lightrag-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.lightrag-https-redirect.redirectscheme.port=7040"
+
   # Redis Service - INTERNAL ONLY
   redis:
     image: redis:7-alpine
@@ -252,7 +294,6 @@ services:
     depends_on:
       - traefik
 
-
 networks:
   internal:
     driver: bridge # Стандартный сетевой драйвер Docker
@@ -261,6 +302,7 @@ volumes:
   mysql_data:       # Docker-managed volume для данных MySQL
   nodered_data:     # Docker-managed volume для данных Node-RED
   flowise_data:     # Docker-managed volume для данных Flowise
+  lightrag_storage: # Docker-managed volume для данных LightRAG
   redis_data:       # Docker-managed volume для данных Redis
   chroma_data:      # Docker-managed volume для данных Chroma
   # service_sessions: # Закомментировано - используем bind mount

@@ -79,6 +79,7 @@ sudo ufw allow 22/tcp    # SSH
 sudo ufw allow 80/tcp    # HTTP
 sudo ufw allow 443/tcp   # HTTPS
 sudo ufw allow 5050/tcp  # FLOWISE (Пример порта приложения)
+sudo ufw allow 7040/tcp  # lightrag
 sudo ufw --force enable
 
 # 10. Настройка Fail2ban с расширенной защитой
