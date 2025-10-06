@@ -300,6 +300,7 @@ sudo apt update && sudo apt upgrade -y
 - **Внешний доступ**: `https://domain.com:5050`
 - **Данные**: Docker volume `flowise_data`
 - **Назначение**: AI workflow, чатботы, векторный поиск
+- **Подключение к ChromaDB**: `http://service_chroma:8000` (прямой доступ к векторной БД)
 
 #### 🧠 **LightRAG** (`service_lightrag`)
 - **Внутренний порт**: 9621
@@ -344,9 +345,15 @@ sudo apt update && sudo apt upgrade -y
 
 #### 🧠 **ChromaDB** (`service_chroma`)
 - **Внутренний порт**: 8000
+- **Прямой доступ из Docker**: `http://service_chroma:8000` (для Flowise, Node-RED, LightRAG)
 - **Внешний доступ**: Только через Chroma-API (security by design)
 - **Данные**: Docker volume `chroma_data`
 - **Назначение**: Векторная БД для AI/ML операций
+- **Использование из Flowise**:
+  ```yaml
+  Chroma URL: http://service_chroma:8000
+  Collection Name: flowise_collection
+  ```
 
 #### 🔌 **Chroma-API** (`service_chroma_api`)
 - **Внутренний порт**: 3010
