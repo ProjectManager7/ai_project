@@ -6,6 +6,10 @@
 # ===========================================
 
 .claude/
+chroma_api/
+config.py
+chroma_api/Инструкции по запуску.txt
+PLAN.md
 
 # Environment переменные с реальными данными
 .env

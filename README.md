@@ -1020,7 +1020,7 @@ docker exec -it service_mysql mysql -u root -p
 docker exec -it service_redis redis-cli ping
 
 # Проверка ChromaDB
-curl http://localhost:8333/api/v1/heartbeat
+curl http://localhost:8333/api/v2/heartbeat
 ```
 
 ---
