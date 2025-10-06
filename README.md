@@ -65,36 +65,45 @@
                 ┌─────▼──────┐
                 │   TRAEFIK  │ ◄─── SSL Termination
                 │  (Proxy)   │      Load Balancer
-                └─────┬──────┘      Port 80,443,5050,7040
+                └─────┬──────┘      Port 80,443,5050,7040,8333
                       │
-        ┌─────────────┼──────────────┼─────────────┐
-        │             │              │             │
-   ┌────▼────┐   ┌────▼────┐   ┌─────▼─────┐ ┌────▼────┐
-   │Node-RED │   │Flowise  │   │ LightRAG  │ │phpMyAdmin│
-   │:443     │   │:5050    │   │ :7040     │ │/phpmyadmin│
-   └────┬────┘   └────┬────┘   └─────┬─────┘ └────┬────┘
-        │             │              │             │
-        └─────────────┼──────────────┼─────────────┘
-                      │
-            ┌─────────▼──────────┐
-            │   INTERNAL NETWORK │
-            │                    │
-   ┌────────┼──────────┼─────────┼─────────┐
+        ┌─────────────┼──────────────┼─────────────┼────────────┐
+        │             │              │             │            │
+   ┌────▼────┐   ┌────▼────┐   ┌─────▼─────┐ ┌────▼────┐ ┌─────▼──────┐
+   │Node-RED │   │Flowise  │   │ LightRAG  │ │phpMyAdmin│ │ Chroma-API │
+   │:443     │   │:5050    │   │ :7040     │ │/phpmyadmin│ │   :8333    │
+   └────┬────┘   └────┬────┘   └─────┬─────┘ └────┬────┘ └─────┬──────┘
+        │             │              │             │            │
+        └─────────────┼──────────────┼─────────────┼────────────┘
+                      │                                         │
+            ┌─────────▼──────────┐                             │
+            │   INTERNAL NETWORK │                             │
+            │                    │                             │
+   ┌────────┼──────────┼─────────┼─────────┬───────────────────┘
    │        │          │         │         │
 ┌──▼──┐ ┌──▼───┐ ┌─────▼──┐ ┌────▼───┐ ┌──▼──┐
 │MySQL│ │Redis │ │ChromaDB│ │ Nginx  │ │Data │
 │:3306│ │:6379 │ │:8000   │ │Static  │ │Vol. │
-└─────┘ └──────┘ └────────┘ └────────┘ └─────┘
+└─────┘ └──────┘ └────▲───┘ └────────┘ └─────┘
+                      │
+                      │ REST API
+                      │
+                ┌─────┴──────┐
+                │ Chroma-API │ (internal network access)
+                │   :3010    │
+                └────────────┘
 ```
 
 ### 🔄 Потоки данных:
 1. **Пользователи** → **Traefik** → **Сервисы**
 2. **Node-RED** ↔ **MySQL** (боты, логи)
 3. **Flowise** ↔ **ChromaDB** (векторы, AI память)
-4. **LightRAG** ↔ **Внутреннее хранилище** (графы знаний, RAG)
-5. **Redis** ↔ **Все сервисы** (кэш, сессии)
-6. **Nginx** → **Статические файлы** (`/var/www/html/data`)
-7. **Node-RED** → **Публичные файлы** (`/data/public/` → `https://domain.com/data/`)
+4. **Chroma-API** ↔ **ChromaDB** (REST API для векторной БД)
+5. **LightRAG** ↔ **Внутреннее хранилище** (графы знаний, RAG)
+6. **Redis** ↔ **Все сервисы** (кэш, сессии)
+7. **Nginx** → **Статические файлы** (`/var/www/html/data`)
+8. **Node-RED** → **Публичные файлы** (`/data/public/` → `https://domain.com/data/`)
+9. **Внешний мир** → **Chroma-API (HTTPS:8333)** → **ChromaDB** (API доступ к векторам)
 
 ### 📁 Структура проекта:
 
@@ -114,6 +123,16 @@ ai_project/                              # 📂 Корневая папка пр
 ├──
 ├── 📁 nginx/                            # Конфигурация веб-сервера
 │   └── 📄 default.conf                  # Настройки для статических файлов
+├──
+├── 📁 chroma-api/                       # REST API для ChromaDB
+│   ├── 📄 Dockerfile                    # Docker образ для Chroma-API
+│   ├── 📄 requirements.txt              # Python зависимости
+│   ├── 📄 app.py                        # Flask приложение (создание app)
+│   ├── 📄 routes.py                     # API endpoints (с проверкой токена)
+│   ├── 📄 chroma_utils.py               # Утилиты для работы с ChromaDB
+│   ├── 📄 readers.py                    # Чтение файлов (txt, pdf, docx, csv, json)
+│   ├── 📄 wsgi.py                       # WSGI entry point для Gunicorn
+│   └── 📄 __init__.py                   # Python package marker
 ├──
 ├── 📁 mysql_init/                       # Инициализация базы данных
 │   └── 📄 init.sql                      # SQL скрипт создания таблиц
@@ -142,6 +161,14 @@ ai_project/                              # 📂 Корневая папка пр
 - **traefik/traefik.yml** - настройки прокси, SSL, маршрутизация
 - **nginx/default.conf** - конфигурация веб-сервера для статики
 - **.env** - переменные окружения (пароли, домены, API ключи)
+
+#### 🧠 **API сервисы:**
+- **chroma-api/app.py** - Flask приложение для REST API к ChromaDB
+- **chroma-api/routes.py** - API endpoints с токен-аутентификацией
+- **chroma-api/chroma_utils.py** - Singleton подключение к ChromaDB
+- **chroma-api/readers.py** - Обработка файлов (pdf, docx, txt, csv, json)
+- **chroma-api/Dockerfile** - Docker образ с health check
+- **chroma-api/requirements.txt** - Python зависимости
 
 #### 🛠️ **Скрипты автоматизации:**
 - **setup-server.sh** - подготовка сервера (см. детали ниже)
@@ -317,9 +344,23 @@ sudo apt update && sudo apt upgrade -y
 
 #### 🧠 **ChromaDB** (`service_chroma`)
 - **Внутренний порт**: 8000
-- **Внешний порт**: 8333
+- **Внешний доступ**: Только через Chroma-API (security by design)
 - **Данные**: Docker volume `chroma_data`
 - **Назначение**: Векторная БД для AI/ML операций
+
+#### 🔌 **Chroma-API** (`service_chroma_api`)
+- **Внутренний порт**: 3010
+- **Внешний порт**: 8333 (HTTPS через Traefik)
+- **Внешний доступ**: `https://your-domain.com:8333/api`
+- **Внутренний доступ**: `http://service_chroma_api:3010/api`
+- **Данные**: Подключение к `service_chroma:8000`
+- **Назначение**: REST API для ChromaDB с токен-аутентификацией
+- **Особенности**:
+  - Health Check endpoint (`/health`)
+  - Token-based authentication
+  - Rate limiting (100 req/sec)
+  - Support для txt, pdf, docx, csv, json файлов
+  - Singleton connection pooling
 
 ---
 
@@ -486,6 +527,644 @@ EMBEDDING_BATCH_NUM=100               # Размер батча embeddings
 
 ---
 
+## 🧠 Chroma-API - REST API для ChromaDB
+
+**Chroma-API** - это REST API сервис для работы с векторной базой данных ChromaDB, обеспечивающий простой интерфейс для хранения, поиска и управления документами с использованием векторных embeddings.
+
+### 📋 Основные возможности:
+
+- **📄 Загрузка документов** - поддержка txt, pdf, docx, csv, json файлов
+- **📝 Загрузка JSON данных** - прямая загрузка структурированных данных
+- **🔍 RAG запросы** - семантический поиск по документам с фильтрацией
+- **📊 Управление коллекциями** - создание, просмотр, удаление коллекций
+- **🗑️ Удаление документов** - гибкое удаление по метаданным
+- **🔐 Безопасность** - токен-аутентификация для всех запросов
+- **📈 Health Check** - мониторинг работоспособности API и ChromaDB
+- **⚡ Rate Limiting** - защита от перегрузки (100 req/sec)
+
+### 🌐 Доступ к сервису:
+
+**Внешний доступ (из браузера/интернета):**
+```bash
+https://your-domain.com:8333/health      # Health Check
+https://your-domain.com:8333/api         # API endpoint
+```
+
+**Внутренний доступ (из других Docker контейнеров):**
+```bash
+http://service_chroma_api:3010/health    # Health Check
+http://service_chroma_api:3010/api       # API endpoint
+```
+
+**Альтернативный внутренний доступ:**
+```bash
+http://chroma-api:3010/health
+http://chroma-api:3010/api
+```
+
+### 🔑 Аутентификация:
+
+Chroma-API использует проверку токена через header `x-chroma-api-token`. Токен настраивается в файле `.env`:
+
+```bash
+# В .env файле:
+CHROMA_API_TOKEN=your-secret-token-here
+```
+
+**Все запросы к `/api` endpoint требуют токен аутентификации. Без токена вернется ошибка 401.**
+
+---
+
+### 📚 API Endpoints
+
+#### 1. 🏥 Health Check
+
+**Проверка работоспособности API и подключения к ChromaDB**
+
+**Локально (внутри Docker):**
+```bash
+# Из хост-системы
+docker exec service_chroma_api curl http://localhost:3010/health
+
+# Из другого контейнера
+curl http://service_chroma_api:3010/health
+```
+
+**Из внешнего мира (через HTTPS):**
+```bash
+curl https://your-domain.com:8333/health
+```
+
+**Ответ:**
+```json
+{
+  "status": "healthy",
+  "service": "chroma-api",
+  "chroma_connected": true
+}
+```
+
+---
+
+#### 2. 📝 Upsert JSON - Загрузка JSON данных
+
+**Добавление структурированных данных в коллекцию**
+
+**Локально:**
+```bash
+docker exec service_chroma_api curl -X POST http://localhost:3010/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "upsert_json",
+    "collection_name": "my_collection",
+    "json_data": "Your text data here",
+    "metadata": {
+      "source": "api",
+      "category": "example"
+    }
+  }'
+```
+
+**Из внешнего мира:**
+```bash
+curl -X POST https://your-domain.com:8333/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "upsert_json",
+    "collection_name": "my_collection",
+    "json_data": "Your text data here",
+    "metadata": {
+      "source": "api",
+      "category": "example"
+    }
+  }'
+```
+
+**Параметры:**
+- `action`: "upsert_json" (обязательно)
+- `collection_name`: имя коллекции (обязательно)
+- `json_data`: текстовые данные или JSON объект (обязательно)
+- `metadata`: метаданные для документа (опционально)
+- `separate_chunks`: true/false - разделить на чанки (опционально)
+- `openai_api_key`: API ключ OpenAI (опционально, по умолчанию из .env)
+- `model_name`: модель для embeddings (опционально, по умолчанию из .env)
+
+**Ответ:**
+```json
+{
+  "status": "success",
+  "added": 1,
+  "ids": ["uuid-here"],
+  "model_used": "text-embedding-3-large"
+}
+```
+
+---
+
+#### 3. 📄 Upsert - Загрузка файлов
+
+**Загрузка и индексация файлов (txt, pdf, docx, csv, json)**
+
+**Локально:**
+```bash
+docker exec service_chroma_api curl -X POST http://localhost:3010/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "upsert",
+    "file_name": "https://example.com/document.pdf",
+    "collection_name": "documents",
+    "metadata": {
+      "source": "web",
+      "title": "Example Document"
+    },
+    "chunk_size": 1000,
+    "chunk_overlap": 200
+  }'
+```
+
+**Из внешнего мира:**
+```bash
+curl -X POST https://your-domain.com:8333/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "upsert",
+    "file_name": "https://example.com/document.pdf",
+    "collection_name": "documents",
+    "metadata": {
+      "source": "web",
+      "title": "Example Document"
+    }
+  }'
+```
+
+**Параметры:**
+- `action`: "upsert" (обязательно)
+- `file_name`: URL или путь к файлу (обязательно)
+- `collection_name`: имя коллекции (обязательно)
+- `metadata`: метаданные (опционально)
+- `chunk_size`: размер чанков текста (опционально, по умолчанию из .env)
+- `chunk_overlap`: перекрытие чанков (опционально, по умолчанию из .env)
+- `custom_separators`: кастомные разделители для чанков (опционально)
+
+**Ответ:**
+```json
+{
+  "status": "success",
+  "added": 5,
+  "ids": ["id1", "id2", "id3", "id4", "id5"],
+  "model_used": "text-embedding-3-large"
+}
+```
+
+---
+
+#### 4. 🔍 Query - Поиск по коллекции
+
+**Семантический поиск релевантных документов с фильтрацией**
+
+**Локально:**
+```bash
+docker exec service_chroma_api curl -X POST http://localhost:3010/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "query",
+    "collection_name": "my_collection",
+    "query": "What is machine learning?",
+    "n_results": 5,
+    "filters": {
+      "where": {
+        "category": "example"
+      }
+    }
+  }'
+```
+
+**Из внешнего мира:**
+```bash
+curl -X POST https://your-domain.com:8333/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "query",
+    "collection_name": "my_collection",
+    "query": "What is machine learning?",
+    "n_results": 5
+  }'
+```
+
+**Параметры:**
+- `action`: "query" (обязательно)
+- `collection_name`: имя коллекции (обязательно)
+- `query`: поисковый запрос (обязательно)
+- `n_results`: количество результатов (опционально, по умолчанию 4)
+- `filters`: фильтры по метаданным (опционально)
+  - `where`: фильтр по метаданным (например: `{"source": "api"}`)
+  - `where_document`: фильтр по содержимому документа
+
+**Ответ:**
+```json
+{
+  "status": "success",
+  "results": {
+    "documents": ["Document 1 text", "Document 2 text"],
+    "metadatas": [
+      {"source": "api", "category": "example"},
+      {"source": "web", "category": "example"}
+    ],
+    "distances": [0.25, 0.35],
+    "ids": ["id1", "id2"],
+    "model_used": "text-embedding-3-large"
+  }
+}
+```
+
+---
+
+#### 5. 📊 Count - Подсчет документов
+
+**Получение количества документов в коллекции**
+
+**Локально:**
+```bash
+docker exec service_chroma_api curl -X POST http://localhost:3010/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "count",
+    "collection_name": "my_collection"
+  }'
+```
+
+**Из внешнего мира:**
+```bash
+curl -X POST https://your-domain.com:8333/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "count",
+    "collection_name": "my_collection"
+  }'
+```
+
+**Параметры:**
+- `action`: "count" (обязательно)
+- `collection_name`: имя коллекции (обязательно)
+
+**Ответ:**
+```json
+{
+  "status": "success",
+  "count": 42
+}
+```
+
+---
+
+#### 6. 📋 Show Collection - Просмотр коллекции
+
+**Получение всех документов из коллекции с фильтрацией**
+
+**Локально:**
+```bash
+docker exec service_chroma_api curl -X POST http://localhost:3010/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "show_collection",
+    "collection_name": "my_collection",
+    "filters": {
+      "where": {
+        "source": "api"
+      },
+      "limit": 10
+    }
+  }'
+```
+
+**Из внешнего мира:**
+```bash
+curl -X POST https://your-domain.com:8333/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "show_collection",
+    "collection_name": "my_collection",
+    "filters": {
+      "limit": 100
+    }
+  }'
+```
+
+**Параметры:**
+- `action`: "show_collection" (обязательно)
+- `collection_name`: имя коллекции (обязательно)
+- `filters`: параметры фильтрации (опционально)
+  - `where`: фильтр по метаданным
+  - `limit`: максимальное количество результатов
+  - `offset`: смещение для пагинации
+
+**Ответ:**
+```json
+{
+  "ids": ["id1", "id2", "id3"],
+  "documents": ["Doc 1", "Doc 2", "Doc 3"],
+  "metadatas": [
+    {"source": "api"},
+    {"source": "api"},
+    {"source": "web"}
+  ],
+  "included": ["metadatas", "documents"]
+}
+```
+
+---
+
+#### 7. 🗑️ Delete File - Удаление документов
+
+**Удаление документов по фильтрам метаданных**
+
+**Локально:**
+```bash
+docker exec service_chroma_api curl -X POST http://localhost:3010/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "delete_file",
+    "collection_name": "my_collection",
+    "filters": {
+      "where": {
+        "source": "api",
+        "category": "temporary"
+      }
+    }
+  }'
+```
+
+**Из внешнего мира:**
+```bash
+curl -X POST https://your-domain.com:8333/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "delete_file",
+    "collection_name": "my_collection",
+    "filters": {
+      "where": {
+        "source": "temporary"
+      }
+    }
+  }'
+```
+
+**Параметры:**
+- `action`: "delete_file" (обязательно)
+- `collection_name`: имя коллекции (обязательно)
+- `filters`: фильтры для удаления (обязательно)
+  - `where`: условия по метаданным
+  - `ids`: конкретные ID документов
+
+**Ответ:**
+```json
+{
+  "status": "success",
+  "deleted": 3,
+  "ids": ["id1", "id2", "id3"]
+}
+```
+
+---
+
+#### 8. 🗂️ Delete Collection - Удаление коллекции
+
+**Полное удаление коллекции со всеми документами**
+
+**Локально:**
+```bash
+docker exec service_chroma_api curl -X POST http://localhost:3010/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "delete_collection",
+    "collection_name": "old_collection"
+  }'
+```
+
+**Из внешнего мира:**
+```bash
+curl -X POST https://your-domain.com:8333/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "delete_collection",
+    "collection_name": "old_collection"
+  }'
+```
+
+**Параметры:**
+- `action`: "delete_collection" (обязательно)
+- `collection_name`: имя коллекции для удаления (обязательно)
+
+**Ответ:**
+```json
+{
+  "status": "success",
+  "message": "Collection old_collection deleted"
+}
+```
+
+---
+
+### ⚙️ Конфигурация:
+
+Все параметры настраиваются через `.env`:
+
+```bash
+# ChromaDB подключение (внутренняя сеть Docker)
+CHROMA_SERVER_HOST=service_chroma
+CHROMA_SERVER_PORT=8000
+
+# Настройки эмбеддингов
+CHROMA_MODEL=text-embedding-3-large
+CHROMA_DEFAULT_CHUNK_SIZE=1000
+CHROMA_DEFAULT_CHUNK_OVERLAP=200
+
+# Безопасность
+CHROMA_API_TOKEN=your-secret-token-here
+
+# OpenAI API для создания embeddings
+OPENAI_API_KEY=sk-your-openai-key
+```
+
+### 🔒 Безопасность:
+
+- **Токен-аутентификация**: Все запросы к `/api` требуют валидный токен
+- **Rate Limiting**: 100 запросов/секунду (средняя), burst до 50 запросов
+- **Compression**: Автоматическое сжатие JSON ответов
+- **SSL/TLS**: Внешний доступ только через HTTPS
+- **Internal Network**: ChromaDB доступен только внутри Docker сети
+
+### 📊 Мониторинг:
+
+**Проверка работоспособности:**
+```bash
+# Health check
+curl https://your-domain.com:8333/health
+
+# Логи контейнера
+docker logs service_chroma_api -f
+
+# Статус контейнера (включая healthcheck)
+docker ps | grep chroma_api
+
+# Детальная информация о health
+docker inspect service_chroma_api | grep -A 10 Health
+```
+
+### 🚀 Примеры использования:
+
+**1. Создание базы знаний:**
+```bash
+# Загрузить несколько документов
+curl -X POST https://your-domain.com:8333/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "upsert",
+    "file_name": "https://example.com/doc1.pdf",
+    "collection_name": "knowledge_base"
+  }'
+
+# Проверить количество
+curl -X POST https://your-domain.com:8333/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "count",
+    "collection_name": "knowledge_base"
+  }'
+```
+
+**2. RAG-поиск с фильтрацией:**
+```bash
+# Поиск только в документах определенной категории
+curl -X POST https://your-domain.com:8333/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "query",
+    "collection_name": "knowledge_base",
+    "query": "Explain neural networks",
+    "n_results": 3,
+    "filters": {
+      "where": {
+        "category": "AI"
+      }
+    }
+  }'
+```
+
+**3. Управление данными:**
+```bash
+# Удалить временные документы
+curl -X POST https://your-domain.com:8333/api \
+  -H "Content-Type: application/json" \
+  -H "x-chroma-api-token: xxxxxxx" \
+  -d '{
+    "action": "delete_file",
+    "collection_name": "knowledge_base",
+    "filters": {
+      "where": {
+        "temporary": "true"
+      }
+    }
+  }'
+```
+
+### 🔧 Использование из других сервисов:
+
+**Из Node-RED:**
+```javascript
+// HTTP Request node
+msg.url = "http://service_chroma_api:3010/api";
+msg.method = "POST";
+msg.headers = {
+  "Content-Type": "application/json",
+  "x-chroma-api-token": env.get("CHROMA_API_TOKEN")
+};
+msg.payload = {
+  action: "query",
+  collection_name: "my_docs",
+  query: msg.payload.userQuestion,
+  n_results: 5
+};
+return msg;
+```
+
+**Из Python (внутри Docker):**
+```python
+import requests
+import os
+
+def query_chroma(query_text, collection="documents"):
+    url = "http://service_chroma_api:3010/api"
+    headers = {
+        "Content-Type": "application/json",
+        "x-chroma-api-token": os.getenv("CHROMA_API_TOKEN")
+    }
+    payload = {
+        "action": "query",
+        "collection_name": collection,
+        "query": query_text,
+        "n_results": 5
+    }
+
+    response = requests.post(url, json=payload, headers=headers)
+    return response.json()
+```
+
+**Из JavaScript/Flowise:**
+```javascript
+// Custom Function node
+const response = await fetch('http://service_chroma_api:3010/api', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-chroma-api-token': process.env.CHROMA_API_TOKEN
+  },
+  body: JSON.stringify({
+    action: 'query',
+    collection_name: 'knowledge_base',
+    query: $question,
+    n_results: 5
+  })
+});
+
+const data = await response.json();
+return data.results.documents.join('\n\n');
+```
+
+### 📈 Производительность:
+
+- **Workers**: 4 Gunicorn workers с 2 потоками каждый
+- **Timeout**: 600 секунд для длительных операций
+- **Connection Pooling**: Singleton подключение к ChromaDB
+- **Batch Processing**: Поддержка параллельной обработки документов
+- **Rate Limiting**: Защита от перегрузки
+
+### ⚠️ Ограничения:
+
+- **Размер файла**: 10 MB (настраивается в коде)
+- **Разрешенные форматы**: txt, pdf, docx, csv, json
+- **Безопасные пути**: Только разрешенные директории для локальных файлов
+- **SSL verification**: Отключена для тестирования (можно включить в production)
+
+---
+
 ## ⚠️ Предварительные требования
 
 ### 🖥 Серверные требования:
@@ -621,6 +1300,8 @@ ls -la /var/www/html/data/
 https://your-domain.com              # Node-RED (логин: admin, пароль: NODE_RED_PASSWORD)
 https://your-domain.com:5050         # Flowise AI (логин из FLOWISE_EMAIL/PASSWORD)
 https://your-domain.com:7040         # LightRAG (JWT аутентификация, см. AUTH_ACCOUNTS в .env)
+https://your-domain.com:8333/health  # Chroma-API Health Check (без аутентификации)
+https://your-domain.com:8333/api     # Chroma-API (требует header: x-chroma-api-token)
 https://your-domain.com/phpmyadmin   # phpMyAdmin (логин: root, пароль: MYSQL_ROOT_PASSWORD)
 https://your-domain.com/data         # Статические файлы (без аутентификации)
 ```
@@ -629,12 +1310,13 @@ https://your-domain.com/data         # Статические файлы (без
 
 | Сервис | URL | Логин | Пароль | Источник |
 |--------|-----|-------|---------|----------|
-| **Node-RED** | `https://domain.com` | `admin` | `NODE_RED_PASSWORD` | `.env` |
-| **Flowise AI** | `https://domain.com:5050` | `FLOWISE_EMAIL` | `FLOWISE_PASSWORD` | `.env` |
-| **LightRAG** | `https://domain.com:7040` | `AUTH_ACCOUNTS` | JWT токен | `.env` |
-| **phpMyAdmin** | `https://domain.com/phpmyadmin` | `root` | `MYSQL_ROOT_PASSWORD` | `.env` |
+| **Node-RED** | `https://your-domain.com` | `admin` | `NODE_RED_PASSWORD` | `.env` |
+| **Flowise AI** | `https://your-domain.com:5050` | `FLOWISE_EMAIL` | `FLOWISE_PASSWORD` | `.env` |
+| **LightRAG** | `https://your-domain.com:7040` | `AUTH_ACCOUNTS` | JWT токен | `.env` |
+| **Chroma-API** | `https://your-domain.com:8333/api` | Header: `x-chroma-api-token` | `CHROMA_API_TOKEN` | `.env` |
+| **phpMyAdmin** | `https://your-domain.com/phpmyadmin` | `root` | `MYSQL_ROOT_PASSWORD` | `.env` |
 | **Traefik Dashboard** | `http://127.0.0.1:8082/dashboard/` | - | - | Localhost only |
-| **Статика** | `https://domain.com/data` | - | - | Без аутентификации |
+| **Статика** | `https://your-domain.com/data` | - | - | Без аутентификации |
 
 **Если сервисы недоступны:**
 ```bash
@@ -655,6 +1337,7 @@ docker network ls
 - ✅ `https://your-domain.com` (Node-RED)
 - ✅ `https://your-domain.com:5050` (Flowise)
 - ✅ `https://your-domain.com:7040` (LightRAG)
+- ✅ `https://your-domain.com:8333/api` (Chroma-API)
 - ✅ `https://your-domain.com/phpmyadmin` (База данных)
 - ✅ `http://127.0.0.1:8082/dashboard/` (Traefik Dashboard - localhost only)
 - ✅ Автоматическое обновление SSL сертификатов
@@ -917,11 +1600,12 @@ docker logs service_nginx_static -f
 
 | Сервис | URL | Логин | Пароль | Назначение |
 |--------|-----|-------|---------|-----------|
-| Node-RED | `https://domain.com` | `admin` | `NODE_RED_PASSWORD` | Визуальное программирование |
-| Flowise | `https://domain.com:5050` | `FLOWISE_EMAIL` | `FLOWISE_PASSWORD` | AI workflow platform |
-| LightRAG | `https://domain.com:7040` | `AUTH_ACCOUNTS` | JWT токен | Knowledge Graph & RAG |
-| phpMyAdmin | `https://domain.com/phpmyadmin` | `root` | `MYSQL_ROOT_PASSWORD` | Управление MySQL |
-| Статические файлы | `https://domain.com/data/` | - | - | Файловый сервер |
+| Node-RED | `https://your-domain.com` | `admin` | `NODE_RED_PASSWORD` | Визуальное программирование |
+| Flowise | `https://your-domain.com:5050` | `FLOWISE_EMAIL` | `FLOWISE_PASSWORD` | AI workflow platform |
+| LightRAG | `https://your-domain.com:7040` | `AUTH_ACCOUNTS` | JWT токен | Knowledge Graph & RAG |
+| Chroma-API | `https://your-domain.com:8333/api` | Header: `x-chroma-api-token` | `CHROMA_API_TOKEN` | REST API для ChromaDB |
+| phpMyAdmin | `https://your-domain.com/phpmyadmin` | `root` | `MYSQL_ROOT_PASSWORD` | Управление MySQL |
+| Статические файлы | `https://your-domain.com/data/` | - | - | Файловый сервер |
 | Traefik Dashboard | `http://127.0.0.1:8082/dashboard/` | - | - | Мониторинг прокси (localhost only) |
 
 ### 📝 Полная диагностика системы
@@ -1328,13 +2012,14 @@ docker ps
 ✅ **Node-RED** для автоматизации и Telegram ботов + публичные файлы
 ✅ **Flowise AI** для создания AI workflow
 ✅ **LightRAG** для Knowledge Graph и RAG (Retrieval Augmented Generation)
+✅ **Chroma-API** - REST API для ChromaDB с токен-аутентификацией
 ✅ **MySQL + phpMyAdmin** для управления базами данных
 ✅ **Redis** для кэширования
-✅ **ChromaDB** для векторных операций
+✅ **ChromaDB** для векторных операций (доступ через Chroma-API)
 ✅ **Nginx** для статических файлов
 ✅ **Общая папка** Node-RED → Nginx для публичных файлов (`/data/public/`)
 ✅ **Автоматизированной проверкой SSL** через `ssl-check.sh`
-✅ **Безопасностью** (UFW + Fail2ban)
+✅ **Безопасностью** (UFW + Fail2ban + Rate Limiting)
 ✅ **Автоматической системой аутентификации** - все пароли из `.env`
 
 ### 🔐 **Система аутентификации:**
