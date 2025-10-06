@@ -35,6 +35,10 @@ entryPoints:
   websecure-7040:
     address: ":7040"
 
+  # Кастомный HTTPS entry point для Chroma-API
+  websecure-8333:
+    address: ":8333"
+
 # Providers (откуда Traefik получает конфигурацию)
 providers:
   # Docker provider для автоматического обнаружения контейнеров

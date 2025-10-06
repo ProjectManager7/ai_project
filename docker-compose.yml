@@ -13,6 +13,7 @@ services:
       - "443:443"       # HTTPS endpoint для Node-RED
       - "5050:5050"     # HTTPS endpoint для Flowise
       - "7040:7040"     # HTTPS endpoint для LightRAG
+      - "8333:8333"     # HTTPS endpoint для Chroma-API
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik:/etc/traefik
@@ -247,7 +248,7 @@ services:
   # VECTOR DATABASE (Chroma) - INTERNAL ONLY
   # ===========================================
   chroma:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:1.0.0
     container_name: service_chroma
     restart: unless-stopped
     environment:
@@ -261,6 +262,64 @@ services:
       - /etc/localtime:/etc/localtime:ro
     networks:
       - internal
+
+  # ===========================================
+  # CHROMA API SERVICE
+  # ===========================================
+  chroma-api:
+    build:
+      context: ./chroma-api
+      dockerfile: Dockerfile
+    container_name: service_chroma_api
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - CHROMA_SERVER_HOST=${CHROMA_SERVER_HOST}
+      - CHROMA_SERVER_PORT=${CHROMA_SERVER_PORT}
+      - CHROMA_MODEL=${CHROMA_MODEL}
+      - CHROMA_DEFAULT_CHUNK_SIZE=${CHROMA_DEFAULT_CHUNK_SIZE}
+      - CHROMA_DEFAULT_CHUNK_OVERLAP=${CHROMA_DEFAULT_CHUNK_OVERLAP}
+      - CHROMA_API_TOKEN=${CHROMA_API_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - chroma
+      - traefik
+    networks:
+      - internal
+    volumes:
+      - ./shared:/data/shared
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    labels:
+      - "traefik.enable=true"
+
+      # HTTP роутер с редиректом на HTTPS
+      - "traefik.http.routers.chromaapi-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.chromaapi-http.entrypoints=web"
+      - "traefik.http.routers.chromaapi-http.middlewares=chromaapi-https-redirect"
+
+      # HTTPS роутер для Chroma-API на порту 8333
+      - "traefik.http.routers.chromaapi-https.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.chromaapi-https.entrypoints=websecure-8333"
+      - "traefik.http.routers.chromaapi-https.priority=80"
+      - "traefik.http.routers.chromaapi-https.tls=true"
+      - "traefik.http.routers.chromaapi-https.tls.certresolver=letsencrypt"
+
+      # Middlewares - Rate Limiting и Compression
+      - "traefik.http.middlewares.chromaapi-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.chromaapi-ratelimit.ratelimit.burst=50"
+      - "traefik.http.middlewares.chromaapi-ratelimit.ratelimit.period=1s"
+      - "traefik.http.middlewares.chromaapi-compress.compress=true"
+
+      # Применяем middlewares к HTTPS роутеру
+      - "traefik.http.routers.chromaapi-https.middlewares=chromaapi-ratelimit,chromaapi-compress"
+
+      # Сервис Chroma-API
+      - "traefik.http.services.chromaapi.loadbalancer.server.port=3010"
+
+      # Middleware для редиректа на HTTPS
+      - "traefik.http.middlewares.chromaapi-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.chromaapi-https-redirect.redirectscheme.port=8333"
 
   # ===========================================
   # STATIC FILES SERVER (Nginx)

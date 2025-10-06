@@ -10,6 +10,8 @@ chroma_api/
 config.py
 chroma_api/Инструкции по запуску.txt
 PLAN.md
+MCP-INFO.md
+METADATA-INFO.md
 
 # Environment переменные с реальными данными
 .env
