@@ -1081,6 +1081,107 @@ curl -X POST "https://social.aigain.io:7040/query" \
 
 ---
 
+##### 1.6 Полный максимальный запрос со всеми параметрами
+
+> ⚠️ **Обязательный параметр:** Только `query` (все остальные опциональны)
+
+**Демонстрация всех доступных параметров API (для справки и тестирования):**
+
+```bash
+curl -X POST "https://social.aigain.io:7040/query" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "query": "Explain the relationship between neural networks and deep learning, with practical examples",
+    "mode": "mix",
+    "top_k": 80,
+    "chunk_top_k": 30,
+    "enable_rerank": true,
+    "include_references": true,
+    "response_type": "Multiple Paragraphs",
+    "max_total_tokens": 4000,
+    "max_entity_tokens": 8000,
+    "max_relation_tokens": 10000,
+    "user_prompt": "Please provide practical code examples where applicable and explain concepts in a beginner-friendly manner",
+    "conversation_history": [
+      {
+        "role": "user",
+        "content": "What is machine learning?"
+      },
+      {
+        "role": "assistant",
+        "content": "Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed. It uses algorithms to parse data, learn from it, and make predictions or decisions."
+      },
+      {
+        "role": "user",
+        "content": "Can you explain supervised learning?"
+      },
+      {
+        "role": "assistant",
+        "content": "Supervised learning is a type of machine learning where the model is trained on labeled data. The algorithm learns to map inputs to outputs based on example input-output pairs. Common tasks include classification and regression."
+      }
+    ]
+  }'
+```
+
+**Описание параметров:**
+
+| Параметр | Обязательный | Значение | Назначение |
+|----------|--------------|----------|------------|
+| `query` | ✅ **ДА** | string | **Основной вопрос** - текущий запрос пользователя |
+| `mode` | ❌ Нет | `"mix"` | **Режим поиска** - комбинация графа знаний и векторного поиска (по умолчанию: `"hybrid"`) |
+| `top_k` | ❌ Нет | `80` | **Количество результатов** - entities/relations для retrieval (по умолчанию: `60`) |
+| `chunk_top_k` | ❌ Нет | `30` | **Количество чанков** - текстовых фрагментов после rerank (по умолчанию: `20`) |
+| `enable_rerank` | ❌ Нет | `true` | **Reranking** - пересортировка результатов по релевантности (по умолчанию: `true`) |
+| `include_references` | ❌ Нет | `true` | **Ссылки на источники** - добавить references в ответ (по умолчанию: `false`) |
+| `response_type` | ❌ Нет | `"Multiple Paragraphs"` | **Формат ответа** - развернутый текст с абзацами (по умолчанию: не задано) |
+| `max_total_tokens` | ❌ Нет | `4000` | **Лимит токенов** - максимум для всего контекста (по умолчанию: `30000`) |
+| `max_entity_tokens` | ❌ Нет | `8000` | **Лимит entity** - токены для контекста сущностей (по умолчанию: `6000`) |
+| `max_relation_tokens` | ❌ Нет | `10000` | **Лимит relations** - токены для контекста связей (по умолчанию: `8000`) |
+| `user_prompt` | ❌ Нет | string | **Кастомная инструкция** - дополнительные указания для LLM (по умолчанию: не задано) |
+| `conversation_history` | ❌ Нет | array | **История диалога** - предыдущие сообщения для контекста (по умолчанию: `[]`) |
+
+**Ответ:**
+```json
+{
+  "response": "Neural networks and deep learning are closely related concepts in artificial intelligence...\n\n[Detailed multi-paragraph explanation]\n\nPractical Example:\n```python\nimport tensorflow as tf\n# Neural network example code\n```\n\n### References\n* [1] neural_networks_guide.pdf\n* [2] deep_learning_fundamentals.txt\n* [3] ml_examples.md",
+  "references": [
+    {
+      "reference_id": "1",
+      "file_path": "neural_networks_guide.pdf",
+      "score": 0.95
+    },
+    {
+      "reference_id": "2",
+      "file_path": "deep_learning_fundamentals.txt",
+      "score": 0.89
+    },
+    {
+      "reference_id": "3",
+      "file_path": "ml_examples.md",
+      "score": 0.85
+    }
+  ]
+}
+```
+
+**💡 Важные замечания:**
+
+1. **`conversation_history`** передается **только в LLM** для контекста, но **НЕ используется для retrieval** (поиск идет только по текущему `query`)
+
+2. **Рекомендуемые комбинации для production:**
+   - Для быстрых ответов: `top_k=30, chunk_top_k=10, enable_rerank=false`
+   - Для качественных ответов: `top_k=60, chunk_top_k=20, enable_rerank=true` ⭐
+   - Для максимальной полноты: `top_k=100, chunk_top_k=30, enable_rerank=true`
+
+3. **Опциональные параметры** (можно не указывать):
+   - Все параметры кроме `query` опциональны
+   - Система использует значения по умолчанию из `.env` (TOP_K, CHUNK_TOP_K, и т.д.)
+
+4. **История диалога** - ограничивайте до 6-8 последних сообщений для экономии токенов
+
+---
+
 #### Коды ошибок:
 
 | Код | Описание | Причина |
