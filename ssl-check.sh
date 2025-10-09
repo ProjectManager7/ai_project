@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 # SSL Domain Check Script
 # Проверяет готовность домена для получения SSL сертификата
 
