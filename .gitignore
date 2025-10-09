@@ -10,10 +10,12 @@ chroma_api/
 config.py
 chroma_api/Инструкции по запуску.txt
 PLAN.md
+PLAN2.md
 MCP-INFO.md
 METADATA-INFO.md
 кен
 ULTRATHINK-TEST-REPORT.md
+RERANKING-TEST-REPORT.md
 
 # Environment переменные с реальными данными
 .env
