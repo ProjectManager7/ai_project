@@ -68,7 +68,12 @@ data/nodered/
 data/flowise/
 
 # LightRAG данные (генерируются автоматически)
-lightrag/
+lightrag/data/
+lightrag/config.ini
+# Но разрешаем патчи для багфиксов
+!lightrag/patches/
+!lightrag/patches/*.py
+!lightrag/patches/*.md
 
 # Docker логи
 docker-compose.override.yml

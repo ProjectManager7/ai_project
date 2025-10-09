@@ -200,6 +200,7 @@ services:
       - ./lightrag/config.ini:/app/config.ini
       - ./.env:/app/.env:ro
       - ./shared:/data/shared
+      - ./lightrag/patches/document_routes.py:/app/lightrag/api/routers/document_routes.py:ro
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     env_file:
