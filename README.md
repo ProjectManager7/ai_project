@@ -1984,6 +1984,25 @@ docker cp file.txt service_nodered:/data/
 docker cp service_nodered:/data/file.txt ./
 ```
 
+### 🔄 Обновление Flowise
+
+```bash
+# Остановить контейнер
+docker compose stop flowise
+
+# Удалить контейнер
+docker compose rm -f flowise
+
+# Обновить образ
+docker compose pull flowise
+
+# Запустить заново
+docker compose up -d flowise
+
+# Одной командой (рекомендуется)
+docker compose pull flowise && docker compose up -d flowise
+```
+
 ### 🔐 Смена пароля Node-RED
 
 **Node-RED имеет автоматическую систему управления паролями:**
