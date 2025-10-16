@@ -35,6 +35,14 @@ entryPoints:
   websecure-7040:
     address: ":7040"
 
+  # Кастомный HTTPS entry point для LightRAG Project A
+  websecure-7041:
+    address: ":7041"
+
+  # Кастомный HTTPS entry point для LightRAG Project B
+  websecure-7042:
+    address: ":7042"
+
   # Кастомный HTTPS entry point для Chroma-API
   websecure-8333:
     address: ":8333"

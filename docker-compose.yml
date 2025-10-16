@@ -12,7 +12,9 @@ services:
       - "127.0.0.1:8082:8080"  # Dashboard Traefik - LOCALHOST ONLY for security
       - "443:443"       # HTTPS endpoint для Node-RED
       - "5050:5050"     # HTTPS endpoint для Flowise
-      - "7040:7040"     # HTTPS endpoint для LightRAG
+      - "7040:7040"     # HTTPS endpoint для LightRAG Default
+      - "7041:7041"     # HTTPS endpoint для LightRAG Project A
+      - "7042:7042"     # HTTPS endpoint для LightRAG Project B
       - "8333:8333"     # HTTPS endpoint для Chroma-API
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -226,6 +228,104 @@ services:
       # Middleware для редиректа на HTTPS
       - "traefik.http.middlewares.lightrag-https-redirect.redirectscheme.scheme=https"
       - "traefik.http.middlewares.lightrag-https-redirect.redirectscheme.port=7040"
+
+  # ===========================================
+  # LIGHTRAG PROJECT A
+  # ===========================================
+  # lightrag_project_a:
+  #   image: ghcr.io/hkuds/lightrag:latest
+  #   container_name: service_lightrag_project_a
+  #   hostname: lightrag-project-a
+  #   restart: unless-stopped
+  #   environment:
+  #     - TZ=${TZ}
+  #     - TIKTOKEN_CACHE_DIR=/app/data/tiktoken
+  #     - PORT=9621
+  #   volumes:
+  #     # ВАЖНО: Используем тот же volume для персистентности
+  #     - lightrag_storage:/app/data/rag_storage
+  #     - ./lightrag/data/inputs:/app/data/inputs
+  #     - ./lightrag/data/tiktoken:/app/data/tiktoken
+  #     - ./lightrag/config.ini:/app/config.ini
+  #     - ./.env:/app/.env:ro
+  #     - ./shared:/data/shared
+  #     - ./lightrag/patches/document_routes.py:/app/lightrag/api/routers/document_routes.py:ro
+  #     - /etc/timezone:/etc/timezone:ro
+  #     - /etc/localtime:/etc/localtime:ro
+  #   env_file:
+  #     - .env
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #   networks:
+  #     - internal
+  #   # КЛЮЧЕВОЙ МОМЕНТ: передаём workspace через command
+  #   command: ["--workspace", "project_a", "--port", "9621"]
+  #   labels:
+  #     - "traefik.enable=true"
+  #     # HTTP роутер с редиректом на HTTPS
+  #     - "traefik.http.routers.lightrag-a-http.rule=Host(`${DOMAIN}`)"
+  #     - "traefik.http.routers.lightrag-a-http.entrypoints=web"
+  #     - "traefik.http.routers.lightrag-a-http.middlewares=lightrag-a-https-redirect"
+  #     # HTTPS роутер для LightRAG Project A на порту 7041
+  #     - "traefik.http.routers.lightrag-a-https.rule=Host(`${DOMAIN}`)"
+  #     - "traefik.http.routers.lightrag-a-https.entrypoints=websecure-7041"
+  #     - "traefik.http.routers.lightrag-a-https.priority=91"
+  #     - "traefik.http.routers.lightrag-a-https.tls=true"
+  #     - "traefik.http.routers.lightrag-a-https.tls.certresolver=letsencrypt"
+  #     # Сервис LightRAG Project A
+  #     - "traefik.http.services.lightrag-a.loadbalancer.server.port=9621"
+  #     # Middleware для редиректа на HTTPS
+  #     - "traefik.http.middlewares.lightrag-a-https-redirect.redirectscheme.scheme=https"
+  #     - "traefik.http.middlewares.lightrag-a-https-redirect.redirectscheme.port=7041"
+
+  # ===========================================
+  # LIGHTRAG PROJECT B
+  # ===========================================
+  # lightrag_project_b:
+  #   image: ghcr.io/hkuds/lightrag:latest
+  #   container_name: service_lightrag_project_b
+  #   hostname: lightrag-project-b
+  #   restart: unless-stopped
+  #   environment:
+  #     - TZ=${TZ}
+  #     - TIKTOKEN_CACHE_DIR=/app/data/tiktoken
+  #     - PORT=9621
+  #   volumes:
+  #     # ВАЖНО: Тот же volume для общего хранилища
+  #     - lightrag_storage:/app/data/rag_storage
+  #     - ./lightrag/data/inputs:/app/data/inputs
+  #     - ./lightrag/data/tiktoken:/app/data/tiktoken
+  #     - ./lightrag/config.ini:/app/config.ini
+  #     - ./.env:/app/.env:ro
+  #     - ./shared:/data/shared
+  #     - ./lightrag/patches/document_routes.py:/app/lightrag/api/routers/document_routes.py:ro
+  #     - /etc/timezone:/etc/timezone:ro
+  #     - /etc/localtime:/etc/localtime:ro
+  #   env_file:
+  #     - .env
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #   networks:
+  #     - internal
+  #   # ИЗМЕНЕНО: workspace = "project_b"
+  #   command: ["--workspace", "project_b", "--port", "9621"]
+  #   labels:
+  #     - "traefik.enable=true"
+  #     # HTTP роутер с редиректом на HTTPS
+  #     - "traefik.http.routers.lightrag-b-http.rule=Host(`${DOMAIN}`)"
+  #     - "traefik.http.routers.lightrag-b-http.entrypoints=web"
+  #     - "traefik.http.routers.lightrag-b-http.middlewares=lightrag-b-https-redirect"
+  #     # HTTPS роутер для LightRAG Project B на порту 7042
+  #     - "traefik.http.routers.lightrag-b-https.rule=Host(`${DOMAIN}`)"
+  #     - "traefik.http.routers.lightrag-b-https.entrypoints=websecure-7042"
+  #     - "traefik.http.routers.lightrag-b-https.priority=92"
+  #     - "traefik.http.routers.lightrag-b-https.tls=true"
+  #     - "traefik.http.routers.lightrag-b-https.tls.certresolver=letsencrypt"
+  #     # Сервис LightRAG Project B
+  #     - "traefik.http.services.lightrag-b.loadbalancer.server.port=9621"
+  #     # Middleware для редиректа на HTTPS
+  #     - "traefik.http.middlewares.lightrag-b-https-redirect.redirectscheme.scheme=https"
+  #     - "traefik.http.middlewares.lightrag-b-https-redirect.redirectscheme.port=7042"
 
   # Redis Service - INTERNAL ONLY
   redis:
