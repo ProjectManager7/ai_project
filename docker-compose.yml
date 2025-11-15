@@ -2,7 +2,7 @@
 
 services:
   traefik:
-    image: traefik:v3.0
+    image: traefik:v2.11
     container_name: service_traefik
     restart: unless-stopped
     environment:
