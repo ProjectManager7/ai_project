@@ -75,10 +75,10 @@ echo -e "${BLUE}🧪 Выполняем dry-run проверку домена...
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Проверяем есть ли запущенный Traefik на порту 80
-if docker ps --format "table {{.Names}}\t{{.Ports}}" | grep -q ":80->80"; then
+if sudo docker ps --format "table {{.Names}}\t{{.Ports}}" | grep -q ":80->80"; then
     echo -e "${YELLOW}⚠️  Обнаружен запущенный Traefik на порту 80${NC}"
     echo -e "${BLUE}🔄 Временно останавливаем контейнеры для проверки...${NC}"
-    docker compose down
+    sudo docker compose down
     RESTART_SERVICES=true
 else
     RESTART_SERVICES=false
@@ -105,7 +105,7 @@ if sudo certbot certonly --dry-run --standalone \
     # Проверяем нужно ли восстановить сервисы или запросить запуск
     if [ "$RESTART_SERVICES" = true ]; then
         echo -e "${BLUE}🚀 Восстанавливаем остановленные сервисы...${NC}"
-        docker compose up -d
+        sudo docker compose up -d
         echo ""
         echo -e "${GREEN}✅ Сервисы восстановлены!${NC}"
         echo -e "${YELLOW}⏳ Подождите 2-3 минуты для получения SSL сертификатов...${NC}"
@@ -119,7 +119,7 @@ if sudo certbot certonly --dry-run --standalone \
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             echo -e "${BLUE}🚀 Запускаем все сервисы...${NC}"
-            docker compose up -d
+            sudo docker compose up -d
             echo ""
             echo -e "${GREEN}✅ Сервисы запущены!${NC}"
             echo -e "${YELLOW}⏳ Подождите 2-3 минуты для получения SSL сертификатов...${NC}"
@@ -128,7 +128,7 @@ if sudo certbot certonly --dry-run --standalone \
             echo -e "   └─ Node-RED: ${GREEN}https://$DOMAIN${NC}"
             echo -e "   └─ Flowise:  ${GREEN}https://$DOMAIN:5050${NC}"
         else
-            echo -e "${YELLOW}ℹ️  Для запуска выполните: ${BLUE}docker compose up -d${NC}"
+            echo -e "${YELLOW}ℹ️  Для запуска выполните: ${BLUE}sudo docker compose up -d${NC}"
         fi
     fi
     
@@ -150,7 +150,7 @@ else
     # Восстанавливаем сервисы если они были остановлены
     if [ "$RESTART_SERVICES" = true ]; then
         echo -e "${BLUE}🔄 Восстанавливаем остановленные сервисы...${NC}"
-        docker compose up -d
+        sudo docker compose up -d
         echo -e "${GREEN}✅ Сервисы восстановлены${NC}"
         echo ""
     fi
