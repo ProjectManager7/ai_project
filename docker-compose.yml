@@ -96,15 +96,15 @@ services:
 
   # Node-RED Configuration Generator
   nodered-init:
-    image: node:18-alpine
+    build:
+      context: ./nodered-config
+      dockerfile: Dockerfile.init
     container_name: service_nodered_init
     environment:
       - NODE_RED_PASSWORD=${NODE_RED_PASSWORD}
       - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_PASSWORD}
     volumes:
       - nodered_data:/data
-      - ./nodered-config/generate-settings.sh:/usr/local/bin/generate-settings.sh:ro
-    command: ["sh", "/usr/local/bin/generate-settings.sh"]
     networks:
       - internal
 

@@ -1,6 +1,9 @@
 FROM node:18-alpine
 
-# Install bcrypt for password hashing
+# Install build dependencies (keep them for bcrypt native modules)
+RUN apk add --no-cache python3 make g++
+
+# Install bcrypt globally
 RUN npm install -g bcrypt
 
 # Copy the settings generation script

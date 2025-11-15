@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Script to generate Node-RED settings.js with dynamic password hash
 set -e
@@ -6,20 +6,24 @@ set -e
 # Default values
 NODE_RED_PASSWORD=${NODE_RED_PASSWORD:-"default_password"}
 SETTINGS_FILE="/data/settings.js"
-TEMPLATE_FILE="/tmp/settings-template.js"
 
 echo "Generating Node-RED settings with password authentication..."
 
-# Install build dependencies for bcrypt in Alpine Linux
-echo "Installing build dependencies..."
-apk add --no-cache python3 make g++ >/dev/null 2>&1
+# Check if settings.js already exists
+if [ -f "$SETTINGS_FILE" ]; then
+    echo "Settings file already exists at $SETTINGS_FILE, skipping generation..."
+    exit 0
+fi
 
-# Install bcrypt locally
-echo "Installing bcrypt..."
-cd /tmp
-npm install bcrypt >/dev/null 2>&1
+# Install bcrypt locally in /tmp if not exists
+if [ ! -d "/tmp/node_modules/bcrypt" ]; then
+    echo "Installing bcrypt locally..."
+    cd /tmp
+    npm install bcrypt --silent 2>&1 | grep -v "npm notice" || true
+fi
 
 # Generate bcrypt hash for password
+echo "Generating password hash..."
 HASH=$(node -e "
 const bcrypt = require('/tmp/node_modules/bcrypt');
 const password = process.env.NODE_RED_PASSWORD || 'default_password';
