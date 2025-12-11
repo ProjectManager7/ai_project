@@ -39,6 +39,7 @@ sudo usermod -aG docker $USER
 echo "⚙️ Настройка Docker daemon..."
 sudo bash -c 'cat > /etc/docker/daemon.json << EOF
 {
+  "dns": ["8.8.8.8", "1.1.1.1"],
   "log-driver": "json-file",
   "log-opts": {
     "max-size": "100m",
